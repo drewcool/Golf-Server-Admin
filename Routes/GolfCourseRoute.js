@@ -50,6 +50,11 @@ router.post("/addCourse", uploadFields, async (req, res) => {
         .json({ message: "Each tee detail must include color, distanceInYards, manScore, and womanScore" });
     }
 
+    // Validate file uploads
+    if (!req.files || !req.files['image']) {
+      return res.status(400).json({ error: "Course image is required" });
+    }
+
     // Create a new golf course
     const newCourse = new GolfCourse({
       name,
@@ -67,15 +72,16 @@ router.post("/addCourse", uploadFields, async (req, res) => {
       contact,
       rating: [],
     });
-    console.log("image" , req.files['image'][0]);
     
+    console.log("Uploaded image:", req.files['image'][0]);
+    console.log("Image path:", req.files['image'][0].path);
 
     await newCourse.save();
 
     res.status(201).json({status : true, message: "Golf course added successfully", course: newCourse });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
+    console.error("Error adding golf course:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 

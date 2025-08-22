@@ -1,11 +1,21 @@
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const { login } = require('../Controllers/UserController');
+
+// Ensure directories exist
+const ensureDirectoryExists = (dirPath) => {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
+};
 
 // Configure storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'images/courses/'); 
+    const uploadPath = 'images/courses/';
+    ensureDirectoryExists(uploadPath);
+    cb(null, uploadPath); 
   },
   filename: (req, file, cb) => {
     var ext = file.originalname.substring(file.originalname.lastIndexOf("."));
@@ -22,8 +32,6 @@ const fileFilter = (req, file, cb) => {
     cb(new Error('Invalid file type. Only image files are allowed.'), false);
   }
 };
-
-
 
 const coursesUpload = multer({ storage, fileFilter });
 

@@ -2,9 +2,17 @@ const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
 
 const { addLession, getLession, saveModifiedLession, getModifiedLessions } = require("../Controllers/course/lession");
 const protectUser = require("../middleWere/authUserMiddlewere");
+
+// Ensure directories exist
+const ensureDirectoryExists = (dirPath) => {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
+};
 
 // Multer Storage Configuration
 const storage = multer.diskStorage({
@@ -23,6 +31,7 @@ const storage = multer.diskStorage({
       if (file.fieldname === "modifiedPhoto") uploadPath = "images/modLession/images/";
     }
 
+    ensureDirectoryExists(uploadPath);
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {

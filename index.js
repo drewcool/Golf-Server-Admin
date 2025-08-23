@@ -9,7 +9,27 @@ require('dotenv').config();
 const cors = require("cors");
 const axios = require('axios');
 
-app.use(cors())
+// CORS configuration to allow your frontend domains
+app.use(cors({
+  origin: [
+    'http://13.50.244.87',
+    'http://13.50.244.87:3000',
+    'http://13.50.244.87:3001',
+    'http://13.50.244.87:5173',
+    'http://13.51.189.31:5000', //new
+    'http://13.51.189.31', //new
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:5173',
+    'https://golfserver.appsxperts.live',
+    'https://golfserver.appsxperts.live:3000',
+    'https://golfserver.appsxperts.live:3001',
+    'https://golfserver.appsxperts.live:5173'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
+}));
 
 const PORT = process.env.PORT || 5000;
 
@@ -48,6 +68,9 @@ ensureDirectories();
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 app.use('/images', express.static('images'));
+
+// Handle preflight requests
+app.options('*', cors());
 
 
 app.get('/', (req, res) => {

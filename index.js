@@ -1,11 +1,11 @@
 
+// require('dotenv').config();
 const express = require('express');
 const { connectDB } = require('./config/db');
 const { errorHandler } = require('./middleWere/errorMiddlewere');
 const fs = require('fs');
 const path = require('path');
 const app = express();
-require('dotenv').config();
 const cors = require("cors");
 const axios = require('axios');
 
@@ -20,6 +20,7 @@ app.use(cors({
     'http://13.51.189.31', //new
     'http://localhost:3000',
     'http://localhost:3001',
+    // 'http://localhost:5000', // Add this for local development
     'http://localhost:5173',
     'https://golfserver.appsxperts.live',
     'https://golfserver.appsxperts.live:3000',
@@ -31,6 +32,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
 
+// const PORT = process.env.PORT || 5000;
 const PORT = process.env.PORT || 5001;
 
 // Ensure required directories exist
@@ -138,7 +140,12 @@ app.use('/api/practice', require('./Routes/practice'));
 
 app.use(errorHandler);
 
-app.listen(PORT, () => {
+// app.listen(PORT, '0.0.0.0', () => {
+//   console.log(`server is running at PORT :- ${PORT}`);
+//   console.log(`Local access: http://localhost:${PORT}`);
+//   console.log(`Network access: http://0.0.0.0:${PORT}`);
+// });
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`server is running at PORT :- ${PORT}`);
 });
 

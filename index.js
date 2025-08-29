@@ -20,7 +20,7 @@ app.use(cors({
     'http://13.51.189.31', //new
     'http://localhost:3000',
     'http://localhost:3001',
-    // 'http://localhost:5000', // Add this for local development
+    'http://localhost:5000', // Add this for local development
     'http://localhost:5173',
     'https://golfserver.appsxperts.live',
     'https://golfserver.appsxperts.live:3000',

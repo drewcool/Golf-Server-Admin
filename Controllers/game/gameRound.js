@@ -2,6 +2,7 @@
 const GolfCourse = require("../../Modals/GolfCourse");
 const roundModal = require("../../Modals/roundModal");
 const GameData = require("../../Modals/GameData");
+const mongoose = require("mongoose"); // Added missing import for mongoose
 
 const startRound = async (req, res) => {
     try {
@@ -117,12 +118,37 @@ const getRound = async (req, res) => {
 const saveGame =  async (req, res) => {
     try {
       const { hitLocations, courseId, teeId } = req.body;
-      const userId = req.user.id;
+      const userId = req.user._id; // Changed from req.user.id to req.user._id for consistency
   
+      // Enhanced validation
       if (!courseId || !teeId || !hitLocations || !Array.isArray(hitLocations) || hitLocations.length === 0) {
-        return res.status(400).json({ message: "Invalid or missing data fields" });
+        return res.status(400).json({ 
+          message: "Invalid or missing data fields",
+          required: ["courseId", "teeId", "hitLocations"],
+          hitLocations: "Must be a non-empty array"
+        });
       }
-  
+
+      // Validate each hit location has required fields
+      for (let i = 0; i < hitLocations.length; i++) {
+        const hit = hitLocations[i];
+        if (typeof hit.par !== 'number') {
+          return res.status(400).json({ 
+            message: `Hit location at index ${i} is missing required 'par' field or it's not a number`,
+            index: i,
+            received: hit.par
+          });
+        }
+      }
+
+      // Validate courseId is a valid ObjectId
+      if (!mongoose.Types.ObjectId.isValid(courseId)) {
+        return res.status(400).json({ 
+          message: "Invalid courseId format",
+          received: courseId
+        });
+      }
+
       const newGameData = new GameData({
         userId,
         courseId,
@@ -133,28 +159,53 @@ const saveGame =  async (req, res) => {
   
       await newGameData.save();
   
-      res.status(201).json({ message: "Game data saved successfully", gameData: newGameData });
+      res.status(201).json({ 
+        message: "Game data saved successfully", 
+        gameData: newGameData,
+        gameId: newGameData._id
+      });
     } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Server error" });
+      console.error("SaveGame Error:", err);
+      
+      // Handle specific MongoDB errors
+      if (err.name === 'ValidationError') {
+        return res.status(400).json({ 
+          message: "Validation error", 
+          errors: Object.values(err.errors).map(e => e.message)
+        });
+      }
+      
+      if (err.code === 11000) {
+        return res.status(400).json({ 
+          message: "Duplicate game data detected" 
+        });
+      }
+      
+      res.status(500).json({ message: "Server error", error: err.message });
     }
 }
 
 const getSavedGames = async (req, res) => {
     try {
-        const userId = req.user.id;
+        const userId = req.user._id; // Changed from req.user.id to req.user._id for consistency
 
-        // Fetch saved games for the logged-in user
-        const savedGames = await GameData.find({ userId }).sort({ timestamp: -1 });
+        // Fetch saved games for the logged-in user with populated course data
+        const savedGames = await GameData.find({ userId })
+            .populate('courseId', 'name city state')
+            .sort({ timestamp: -1 });
 
         if (!savedGames || savedGames.length === 0) {
             return res.status(404).json({ message: "No saved games found" });
         }
 
-        res.status(200).json({ savedGames });
+        res.status(200).json({ 
+            message: "Saved games retrieved successfully",
+            count: savedGames.length,
+            savedGames 
+        });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: "Server error" });
+        console.error("GetSavedGames Error:", err);
+        res.status(500).json({ message: "Server error", error: err.message });
     }
 };
 

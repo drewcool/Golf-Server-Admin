@@ -7,7 +7,9 @@ const TeeBoxSchema = new mongoose.Schema({
   yards: { type: Number },
   meters: { type: Number },
   hcp: { type: Number },
-  hex: { type: String, default: "#000000" }
+  hex: { type: String, default: "#000000" },
+  lat: { type: String, default: "" },
+  lng: { type: String, default: "" }
 });
 
 const CoordinateSchema = new mongoose.Schema({

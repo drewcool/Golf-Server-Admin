@@ -29,10 +29,19 @@ router.post("/addCourse", uploadFields, async (req, res) => {
       longitude,
       description,
       holesCount,
-      teeDetails,
       facilities,
       contact,
     } = req.body;
+
+    // Parse teeDetails if sent as JSON string via multipart form-data
+    let teeDetails = [];
+    if (req.body.teeDetails) {
+      try {
+        teeDetails = typeof req.body.teeDetails === 'string' ? JSON.parse(req.body.teeDetails) : req.body.teeDetails;
+      } catch (e) {
+        return res.status(400).json({ message: 'Invalid teeDetails JSON' });
+      }
+    }
 
     // Define the required fields
     const requiredFields = ["name", "address", "city", "state",  "description"];
@@ -44,10 +53,10 @@ router.post("/addCourse", uploadFields, async (req, res) => {
       }
     }
 
-    if (teeDetails && teeDetails.some((tee) => !tee.color || !tee.distanceInYards || !tee.manScore || !tee.womanScore)) {
+    if (teeDetails && teeDetails.some((tee) => !tee.color || !tee.distanceInYards)) {
       return res
         .status(400)
-        .json({ message: "Each tee detail must include color, distanceInYards, manScore, and womanScore" });
+        .json({ message: "Each tee detail must include color and distanceInYards" });
     }
 
     // Validate file uploads
@@ -130,12 +139,85 @@ router.get("/topRatedCourses", async (req, res) => {
   try {
     const courses = await GolfCourse.find();
     
-    // Calculate average rating for sorting
-    const coursesWithAvgRating = courses.map((course) => {
-      const totalStars = course.rating.reduce((acc, curr) => acc + curr.star, 0);
-      const avgRating = course.rating.length ? totalStars / course.rating.length : 0;
-      return { ...course._doc, avgRating };
-    });
+    // Calculate average rating for sorting and populate teeDetails with hole data
+    const coursesWithAvgRating = await Promise.all(
+      courses.map(async (course) => {
+        const totalStars = course.rating.reduce((acc, curr) => acc + curr.star, 0);
+        const avgRating = course.rating.length ? totalStars / course.rating.length : 0;
+        
+        // Get holes data for this course
+        const Hole = require('../Modals/Hole');
+        const holes = await Hole.find({ courseId: course._id }).sort({ hole: 1 });
+        
+        // Create teeDetails array from teeBoxes data in the required format
+        const populatedTeeDetails = [];
+        holes.forEach(hole => {
+          if (hole.teeBoxes && hole.teeBoxes.length > 0) {
+            hole.teeBoxes.forEach(teeBox => {
+              populatedTeeDetails.push({
+                color: teeBox.color || null,
+                colorCode: teeBox.hex || null,
+                distanceInYards: teeBox.yards || null,
+                manScore: null, // Not available in current teeBox structure
+                womanScore: null, // Not available in current teeBox structure
+                champienScore: null, // Not available in current teeBox structure
+                proScore: null, // Not available in current teeBox structure
+                sId: teeBox.teeType || null,
+                image: null, // Not available in current teeBox structure
+                par: teeBox.par || null
+              });
+            });
+          }
+        });
+
+        // Fallback: if no hole-based tee details, use the course's saved teeDetails
+        // Prefer tee details saved on the course from Add Course page; fallback to aggregated hole tee boxes
+        const teeDetailsToReturn = (Array.isArray(course.teeDetails) && course.teeDetails.length > 0)
+          ? course.teeDetails.map((t) => {
+              const label = (t.label || '').toLowerCase();
+              // Determine sId dynamically: prefer provided t.sId; else map from label; else infer from which score is set; else null
+              const labelToSidMap = {
+                man: 'regular', men: 'regular',
+                woman: 'forward', women: 'forward',
+                champion: 'championship',
+                pro: 'pro'
+              };
+              let defaultSid = null;
+              if (t.sId) {
+                defaultSid = t.sId;
+              } else if (label && labelToSidMap[label]) {
+                defaultSid = labelToSidMap[label];
+              } else if (t.manScore !== undefined && t.manScore !== null && t.manScore !== '') {
+                defaultSid = 'regular';
+              } else if (t.womanScore !== undefined && t.womanScore !== null && t.womanScore !== '') {
+                defaultSid = 'forward';
+              } else if (t.championScore !== undefined && t.championScore !== null && t.championScore !== '') {
+                defaultSid = 'championship';
+              } else if (t.proScore !== undefined && t.proScore !== null && t.proScore !== '') {
+                defaultSid = 'pro';
+              }
+              return {
+                color: t.color ?? null,
+                colorCode: t.colorCode ?? null,
+                distanceInYards: typeof t.distanceInYards === 'number' ? t.distanceInYards : (t.distanceInYards ? Number(t.distanceInYards) : null),
+                manScore: t.manScore !== undefined && t.manScore !== '' ? Number(t.manScore) : null,
+                womanScore: t.womanScore !== undefined && t.womanScore !== '' ? Number(t.womanScore) : null,
+                champienScore: t.championScore !== undefined && t.championScore !== '' ? Number(t.championScore) : null,
+                proScore: t.proScore !== undefined && t.proScore !== '' ? Number(t.proScore) : null,
+                sId: defaultSid,
+                image: t.image ?? null,
+                par: t.par !== undefined && t.par !== '' ? Number(t.par) : null,
+              };
+            })
+          : populatedTeeDetails;
+
+        return { 
+          ...course._doc, 
+          avgRating,
+          teeDetails: teeDetailsToReturn
+        };
+      })
+    );
 
     // Sort by average rating in descending order
     const sortedCourses = coursesWithAvgRating.sort((a, b) => b.avgRating - a.avgRating);
@@ -286,6 +368,19 @@ router.put("/updateCourse", uploadFields, async (req, res) => {
   try {
     const { courseId, name, address, city, state, description, holesCount, facilities, contact } = req.body;
 
+    // Parse teeDetails if sent (optional)
+    let teeDetails = undefined;
+    if (typeof req.body.teeDetails !== 'undefined') {
+      try {
+        teeDetails = typeof req.body.teeDetails === 'string' ? JSON.parse(req.body.teeDetails) : req.body.teeDetails;
+        if (!Array.isArray(teeDetails)) {
+          return res.status(400).json({ status: false, message: 'teeDetails must be an array' });
+        }
+      } catch (e) {
+        return res.status(400).json({ status: false, message: 'Invalid teeDetails JSON' });
+      }
+    }
+
     // Define the required fields
     const requiredFields = ["courseId", "name", "address", "city", "state", "description"];
 
@@ -311,6 +406,9 @@ router.put("/updateCourse", uploadFields, async (req, res) => {
     course.holesCount = holesCount;
     course.facilities = facilities ? [facilities] : [];
     course.contact = contact ? { phone: contact } : {};
+    if (teeDetails) {
+      course.teeDetails = teeDetails;
+    }
 
     // Update image if provided
     if (req.files && req.files['image'] && req.files['image'][0]) {
